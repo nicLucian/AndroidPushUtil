@@ -5,7 +5,7 @@ class RefreshHandler(Handler):
     def __init__(self):
         self.commands = ["adb devices"]
 
-    def handle_result(self, result_lines, frame, command):
+    def handle_result(self, result_lines, frame, command=""):
         self._set_status(result_lines, frame, command)
         self._set_devices(result_lines, frame)
 
@@ -19,7 +19,7 @@ class RefreshHandler(Handler):
     def _set_status(self, result_lines, frame, command):
         result = command + ":\n"
         for line in result_lines:
-            result = result + line + str()
+            result = result + line
         frame.set_status(result)
 
 

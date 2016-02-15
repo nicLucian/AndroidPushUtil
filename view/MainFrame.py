@@ -1,20 +1,34 @@
+#coding utf8
 import wx
+import sys
 
+from handler.PushHandler import PushHandler
 from handler.RebootHandler import RebootHandler
 from handler.RefreshHandler import RefreshHandler
 
+reload(sys)
+sys.setdefaultencoding("utf-8")
 
 class FileDropTarget(wx.FileDropTarget):
-    def __init__(self, listctrl):
+    def __init__(self, listctrl, frame):
         wx.FileDropTarget.__init__(self)
         self.listctrl = listctrl
+        self.frame = frame
+        self.files_existed = []
 
     def OnDropFiles(self, x, y, file_names):
         for file in file_names:
-            tokens = str(file).split('/')
-            length = len(tokens)
-            pos = self.listctrl.InsertStringItem(0, tokens[length-1])
-            self.listctrl.SetStringItem(pos, 1, file)
+            if file not in self.files_existed:
+                tokens = str(file).decode('utf-8', 'ignore').split('/')
+                length = len(tokens)
+                file_name = tokens[length-1]
+                if file_name.endswith(".apk"):
+                    pos = self.listctrl.InsertStringItem(0, file_name)
+                    self.listctrl.SetStringItem(pos, 1, file)
+                    self.files_existed.append(file)
+                else:
+                    errorDlg = wx.MessageDialog(self.frame, "you can only push apks", "Hint", wx.OK)
+                    errorDlg.ShowModal()
 
 
 class MainFrame(wx.Frame):
@@ -49,7 +63,7 @@ class MainFrame(wx.Frame):
         listctrl = wx.ListCtrl(self, wx.NewId(), style=wx.LC_REPORT)
         listctrl.InsertColumn(0, "FileName", width=200)
         listctrl.InsertColumn(1, "Directory", width=500)
-        mfdt = FileDropTarget(listctrl)
+        mfdt = FileDropTarget(listctrl, self)
         listctrl.SetDropTarget(mfdt)
         return listctrl
 
@@ -72,12 +86,16 @@ class MainFrame(wx.Frame):
         button_push = wx.Button(self, wx.ID_ANY, label="push")
         button_reboot = wx.Button(self, wx.ID_ANY, label="reboot")
         button_refresh = wx.Button(self, wx.ID_ANY, label="refresh devices")
+        button_delete = wx.Button(self, wx.ID_ANY, label="remove")
 
+        self.Bind(wx.EVT_BUTTON, self.onPush, button_push)
         self.Bind(wx.EVT_BUTTON, self.onReboot, button_reboot)
         self.Bind(wx.EVT_BUTTON, self.onRefresh, button_refresh)
+        self.Bind(wx.EVT_BUTTON, self.onDelete, button_delete)
 
         buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        buttons_sizer.Add(button_push, 4, wx.EXPAND)
+        buttons_sizer.Add(button_push, 2, wx.EXPAND)
+        buttons_sizer.Add(button_delete, 2, wx.EXPAND)
         buttons_sizer.AddSpacer(10)
         buttons_sizer.Add(button_reboot, 1, wx.EXPAND)
         buttons_sizer.Add(button_refresh, 1, wx.EXPAND)
@@ -94,9 +112,21 @@ class MainFrame(wx.Frame):
         self.SetSizer(sizers_sizer)
         self.SetAutoLayout(True)
 
+    def onPush(self, event):
+        push_handler = PushHandler(self)
+        push_handler.exec_command(self)
+
     def onReboot(self, event):
         handler = RebootHandler(self)
         handler.exec_command(self)
+
+    def onDelete(self, event):
+        ids = self._get_selected_items_id(self.file_listctrl)
+        if len(ids) <= 0:
+            errorDlg = wx.MessageDialog(self, "you have not chosen any file yet", "Hint", wx.OK)
+            errorDlg.ShowModal()
+        for id in ids:
+            self.file_listctrl.DeleteItem(id)
 
     def onRefresh(self, event):
         self.devices_listctrl.DeleteAllItems()
@@ -104,24 +134,40 @@ class MainFrame(wx.Frame):
         handler.exec_command(self)
 
     def get_selected_filepaths(self):
-
-        pass
+        selected_files = self._get_selected_items(self.file_listctrl, 1)
+        return selected_files
 
     def get_selected_devices(self):
-        devices = []
+        devices = self._get_selected_items(self.devices_listctrl)
+        return devices
+
+    def show_dialog(self, message, title):
+        errorDlg = wx.MessageDialog(self, message, title, wx.OK)
+        errorDlg.ShowModal()
+
+
+    def _get_selected_items_id(self, listctlr):
+        ids = []
+        lastFound = -1
         while True:
-            lastFound = -1
-            index = self.devices_listctrl.GetNextItem(
-                    lastFound,
-                    wx.LIST_NEXT_ALL,
-                    wx.LIST_STATE_SELECTED,
+            index = listctlr.GetNextItem(
+                lastFound,
+                wx.LIST_NEXT_ALL,
+                wx.LIST_STATE_SELECTED,
             )
             if index == -1:
                 break
             else:
                 lastFound = index
-                devices.append(self.devices_listctrl.GetItem(index))
-        return devices
+                ids.append(index)
+        return ids
+
+    def _get_selected_items(self, listctlr, column_id = 0):
+        items = []
+        ids = self._get_selected_items_id(listctlr)
+        for id in ids:
+            items.append(listctlr.GetItem(id, column_id).GetText())
+        return items
 
     def set_status(self, message):
         for x in message:
