@@ -1,5 +1,8 @@
 import wx
 
+from handler.RebootHandler import RebootHandler
+from handler.RefreshHandler import RefreshHandler
+
 
 class FileDropTarget(wx.FileDropTarget):
     def __init__(self, listctrl):
@@ -53,7 +56,7 @@ class MainFrame(wx.Frame):
     def append_devices_listctrl(self):
         devices_list = wx.ListCtrl(self,
                                    wx.NewId(),
-                                   style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_HRULES | wx.LC_VRULES)
+                                   style=wx.LC_REPORT)
         devices_list.InsertColumn(0, "DeviceName", width=200)
         return devices_list
 
@@ -69,6 +72,9 @@ class MainFrame(wx.Frame):
         button_push = wx.Button(self, wx.ID_ANY, label="push")
         button_reboot = wx.Button(self, wx.ID_ANY, label="reboot")
         button_refresh = wx.Button(self, wx.ID_ANY, label="refresh devices")
+
+        self.Bind(wx.EVT_BUTTON, self.onReboot, button_reboot)
+        self.Bind(wx.EVT_BUTTON, self.onRefresh, button_refresh)
 
         buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
         buttons_sizer.Add(button_push, 4, wx.EXPAND)
@@ -88,14 +94,42 @@ class MainFrame(wx.Frame):
         self.SetSizer(sizers_sizer)
         self.SetAutoLayout(True)
 
+    def onReboot(self, event):
+        handler = RebootHandler(self)
+        handler.exec_command(self)
+
+    def onRefresh(self, event):
+        self.devices_listctrl.DeleteAllItems()
+        handler = RefreshHandler()
+        handler.exec_command(self)
+
     def get_selected_filepaths(self):
 
         pass
 
     def get_selected_devices(self):
+        devices = []
+        while True:
+            lastFound = -1
+            index = self.devices_listctrl.GetNextItem(
+                    lastFound,
+                    wx.LIST_NEXT_ALL,
+                    wx.LIST_STATE_SELECTED,
+            )
+            if index == -1:
+                break
+            else:
+                lastFound = index
+                devices.append(self.devices_listctrl.GetItem(index))
+        return devices
 
+    def set_status(self, message):
+        for x in message:
+            self.text_status.AppendText(str(x))
+
+    def add_device(self, device_name):
+        self.devices_listctrl.InsertStringItem(0, device_name)
         pass
-
 
 
 app = wx.App(False)
